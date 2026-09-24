@@ -1,0 +1,87 @@
+{
+  "name": "jev-context-compaction",
+  "version": "0.1.5",
+  "description": "Low-latency Jev-guided compaction through the TypeSafe AI Rust SDK.",
+  "author": { "name": "TypeSafe Rust SDK contributors" },
+  "license": "MIT",
+  "userConfig": {
+    "endpoint": {
+      "type": "string",
+      "title": "Local compaction endpoint",
+      "description": "HTTP endpoint exposed by jev-context-compaction-server.",
+      "default": "http://127.0.0.1:8787/compact"
+    },
+    "keepThreshold": {
+      "type": "number",
+      "title": "Keep threshold",
+      "description": "Minimum Jev probability for retaining a call or its full result.",
+      "default": 0.5
+    },
+    "preserveRecentMessages": {
+      "type": "number",
+      "title": "Recent messages to preserve",
+      "description": "Number of newest transcript messages protected from compaction.",
+      "default": 6
+    },
+    "compactAtPercent": {
+      "type": "number",
+      "title": "Compaction percentage",
+      "description": "Context percentage at which turn.complete requests compaction.",
+      "default": 60
+    },
+    "autoRetryDeltaPercent": {
+      "type": "number",
+      "title": "Auto-compaction retry gap",
+      "description": "Minimum additional context percentage before retrying after an auto-compaction attempt.",
+      "default": 10
+    },
+    "minReductionRatio": {
+      "type": "number",
+      "title": "Minimum reduction ratio",
+      "description": "Minimum character reduction required to replace history.",
+      "default": 0.25
+    },
+    "maxStateTokens": {
+      "type": "number",
+      "title": "Maximum state tokens",
+      "description": "Estimated token budget for the fitted Jev state.",
+      "default": 25000
+    },
+    "maxCombinedTokens": {
+      "type": "number",
+      "title": "Maximum combined tokens",
+      "description": "Estimated budget for state and all questions in one request.",
+      "default": 60000
+    },
+    "maxStateQuestionTokens": {
+      "type": "number",
+      "title": "State and question limit",
+      "description": "Estimated budget for state plus the longest question.",
+      "default": 30000
+    },
+    "maxParallelRequests": {
+      "type": "number",
+      "title": "Parallel request limit",
+      "description": "Maximum concurrent Jev calls when one request cannot fit all questions.",
+      "default": 4
+    },
+    "requestTimeoutMs": {
+      "type": "number",
+      "title": "Request timeout",
+      "description": "Jev request deadline in milliseconds before built-in fallback.",
+      "default": 3000
+    },
+    "truncateHeadChars": {
+      "type": "number",
+      "title": "Truncated result head",
+      "description": "Leading result characters retained when the full result is dropped.",
+      "default": 300
+    },
+    "model": {
+      "type": "string",
+      "title": "Jev model",
+      "description": "TypeSafe System One model used for compaction judgments.",
+      "default": "jev-latest"
+    }
+  }
+}

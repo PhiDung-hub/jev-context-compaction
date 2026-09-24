@@ -1,0 +1,16 @@
+{
+  "name": "jev-context-compaction",
+  "owner": {
+    "name": "PhiDung-hub"
+  },
+  "description": "Low-latency Jev-guided compaction through the TypeSafe AI Rust SDK.",
+  "plugins": [
+    {
+      "name": "jev-context-compaction",
+      "source": "./claude",
+      "description": "Low-latency Jev-guided compaction through the TypeSafe AI Rust SDK.",
+      "version": "0.1.5",
+      "license": "MIT"
+    }
+  ]
+}
