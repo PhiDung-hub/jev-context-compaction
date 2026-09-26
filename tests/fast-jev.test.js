@@ -75,3 +75,34 @@ test('auto-compaction waits for meaningful usage growth before retrying', async 
   await complete();
   assert.equal(calls, 3);
 });
+
+test('each compaction toasts once as `<what> · <outcome>`, without server text, and never throws', async () => {
+  const handlers = new Map();
+  register((name, handler) => handlers.set(name, handler), {});
+  const messages = [{ role: 'user', text: 'secret prompt', toolUses: [] }];
+  const toastsFor = async (fetch, toast = () => {}) => {
+    const toasts = [];
+    const $ = {
+      http: { fetch },
+      ui: { log: () => { throw new Error('log down'); }, toast: (text) => { toasts.push(text); toast(); } },
+    };
+    assert.equal(await handlers.get('session.compact')($, { messages }, () => 'next') !== undefined, true);
+    return toasts;
+  };
+  const stats = { charsBefore: 100, charsAfter: 26, calls: 1, requests: 1, elapsedMs: 700 };
+
+  assert.deepEqual(
+    await toastsFor(async () => ({ ok: true, text: JSON.stringify({ messages, stats }) })),
+    ['compact · applied 74% in 0.7 s'],
+  );
+  assert.deepEqual(
+    await toastsFor(async () => ({ ok: false, status: 413, text: 'secret prompt' })),
+    ['fallback · HTTP 413'],
+  );
+  assert.deepEqual(
+    await toastsFor(async () => ({ ok: true, text: JSON.stringify({ messages, stats }) }), () => {
+      throw new Error('toast down');
+    }),
+    ['compact · applied 74% in 0.7 s'],
+  );
+});

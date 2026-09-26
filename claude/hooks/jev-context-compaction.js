@@ -93,9 +93,23 @@ function restore(compacted, original) {
   }));
 }
 
-function notify($, text) {
-  $.ui.log(text);
-  $.ui.toast(text, { timeoutMs: 15000 });
+function log($, text) {
+  try {
+    $.ui.log(`jev-context-compaction ${text}`);
+  } catch {}
+}
+
+// One toast per action, `<what> · <outcome>`; Claude Code titles it with the plugin name.
+// Toasts never carry payloads or server text: that detail goes to the log only.
+function notify($, toast, detail = toast) {
+  log($, detail);
+  try {
+    $.ui.toast(toast, { timeoutMs: 15000 });
+  } catch {}
+}
+
+function applied(result) {
+  return `compact · applied ${Math.round(reduction(result) * 100)}% in ${(result.stats.elapsedMs / 1000).toFixed(1)} s`;
 }
 
 async function run($, messages, config) {
@@ -114,6 +128,7 @@ async function run($, messages, config) {
     const error = new Error(
       `local compactor HTTP ${response.status}: ${signal.message ?? response.text}`,
     );
+    error.status = response.status;
     error.disableHooks = signal.disableHooks === true;
     throw error;
   }
@@ -129,22 +144,30 @@ export const register = (on, options) => {
 
   on('session.compact', async ($, event, next) => {
     if (disabled) return next(event);
-    notify($, 'jev-context-compaction started');
+    log($, 'started');
     try {
       const result = await run($, strip(event.messages), config);
       if (reduction(result) < config.minReductionRatio) {
-        notify($, `jev-context-compaction finished; built-in fallback below reduction threshold (${summary(result)})`);
+        notify(
+          $,
+          `fallback · reduction ${Math.round(reduction(result) * 100)}% below ${Math.round(config.minReductionRatio * 100)}%`,
+          `built-in fallback below reduction threshold (${summary(result)})`,
+        );
         return next(event);
       }
-      notify($, `jev-context-compaction applied (${summary(result)})`);
+      notify($, applied(result), `applied (${summary(result)})`);
       return { messages: restore(result.messages, event.messages) };
     } catch (error) {
       if (error instanceof Error && error.disableHooks === true) {
         disabled = true;
-        notify($, 'jev-context-compaction disabled: TypeSafe API usage is exhausted');
+        notify($, 'fallback · TypeSafe usage exhausted, disabled', 'disabled: TypeSafe API usage is exhausted');
         return next(event);
       }
-      notify($, `jev-context-compaction fallback (${error instanceof Error ? error.message : String(error)})`);
+      notify(
+        $,
+        `fallback · ${error?.status ? `HTTP ${error.status}` : 'compactor error'}`,
+        `fallback (${error instanceof Error ? error.message : String(error)})`,
+      );
       return next(event);
     }
   });
@@ -167,7 +190,7 @@ export const register = (on, options) => {
       compacting = true;
       await $.session.compact();
     } catch (error) {
-      $.ui.log(`jev-context-compaction auto-compact skipped (${error instanceof Error ? error.message : String(error)})`);
+      log($, `auto-compact skipped (${error instanceof Error ? error.message : String(error)})`);
     } finally {
       compacting = false;
     }

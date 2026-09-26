@@ -1,6 +1,6 @@
 {
   "name": "jev-context-compaction",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Low-latency Jev-guided compaction through the TypeSafe AI Rust SDK.",
   "author": { "name": "TypeSafe Rust SDK contributors" },
   "license": "MIT",
