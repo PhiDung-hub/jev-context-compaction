@@ -9,7 +9,7 @@ use crate::model::{Message, Role, ToolCall, ToolResult};
 
 pub use fit::fit_state;
 
-const STATE_CONTEXT: &str = "A coding assistant conversation is being compacted. History is oldest first. Tool outputs are represented by short result notes. Decide what must remain for the assistant's next work; deleted tools can be run again.";
+const STATE_CONTEXT: &str = "A coding assistant conversation is being compacted. History is oldest first. Tool outputs are represented by short result notes and, while space allows, their first characters (`head`). Decide what must remain for the assistant's next work; deleted tools can be run again.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CompactionState {
@@ -42,6 +42,8 @@ enum HistoryCall {
         tool: String,
         input: String,
         result: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        head: Option<String>,
     },
     Compact(String),
 }

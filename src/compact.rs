@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use typesafe_ai::{Client, RequestOptions, RetryPolicy};
 use typesafe_ai_common::{SystemOneCall, system_one_batch};
 
-use crate::decision::{apply_decisions, decide_call};
+use crate::decision::{apply_decisions, decide_calls};
 use crate::model::{
     CallAnswer, CompactOptions, CompactResult, CompactStats, CompactionError, Message, Result,
 };
@@ -69,19 +69,12 @@ pub async fn compact(
         }
     }
 
-    let decisions: Vec<_> = calls
-        .iter()
-        .map(|call| {
-            decide_call(
-                call,
-                answers.get(&call.id).copied().unwrap_or(CallAnswer {
-                    keep_call: 1.0,
-                    keep_result: 1.0,
-                }),
-                options.keep_threshold,
-            )
-        })
-        .collect();
+    let decisions = decide_calls(
+        &calls,
+        &answers,
+        options.keep_budget_ratio,
+        options.truncate_head_chars,
+    );
     let compacted = apply_decisions(messages, &decisions, &calls, options.truncate_head_chars);
     let stats = CompactStats {
         messages_before: messages.len(),
@@ -123,9 +116,9 @@ pub fn reduction_ratio(result: &CompactResult) -> f64 {
 }
 
 fn validate_options(options: &CompactOptions) -> Result<()> {
-    if !(0.0..=1.0).contains(&options.keep_threshold) {
+    if !(0.0..=1.0).contains(&options.keep_budget_ratio) {
         return Err(CompactionError::InvalidOption(
-            "keep_threshold must be between zero and one".to_owned(),
+            "keep_budget_ratio must be between zero and one".to_owned(),
         ));
     }
     if options.max_state_tokens == 0

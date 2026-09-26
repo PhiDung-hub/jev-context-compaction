@@ -15,6 +15,12 @@ The rewrite was based on upstream commit
   budget, with a separate 32k state-plus-longest-question guard.
 - Uses concise questions and normally evaluates hundreds of candidate tool calls
   in one request, avoiding repeated transmission of the full conversation.
+- Shows Jev the first `truncateHeadChars` of each result: the newest heads keep a
+  fifth of the state budget while old text shrinks, and the rest go oldest first.
+  It then keeps the calls and full results Jev ranks highest until
+  `keepBudgetRatio` (default 0.15) of the compactable tool-call characters is
+  spent, rather than applying a fixed probability threshold; an item costing over
+  a quarter of that budget ranks after all others.
 - Reuses the SDK's pooled HTTP client.
 - Disables retries and applies a three-second request deadline by default so the
   host can promptly fall back to ordinary compaction.

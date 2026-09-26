@@ -19,7 +19,7 @@ pub(crate) fn questions_for(call: &ToolCall) -> Questions {
         (
             format!("result_{}", call.id),
             Question::noul(format!(
-                "Must the full result of tool call {} ({}, {} chars) remain verbatim? Answer no if re-running it is sufficient.",
+                "Must the full result of tool call {} ({}, {} chars) remain verbatim? Answer no if its `head` in `history` or re-running it is sufficient.",
                 call.id, call.tool, call.result_chars
             )),
         ),

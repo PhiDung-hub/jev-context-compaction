@@ -95,7 +95,8 @@ pub struct CallDecision {
 pub struct CompactOptions {
     pub goal: String,
     pub model: Option<String>,
-    pub keep_threshold: f64,
+    /// Fraction of the unpinned calls' characters that may stay, spent on Jev's top-ranked calls and results.
+    pub keep_budget_ratio: f64,
     pub preserve_recent_messages: usize,
     pub max_state_tokens: usize,
     pub max_combined_tokens: usize,
@@ -110,7 +111,7 @@ impl Default for CompactOptions {
         Self {
             goal: String::new(),
             model: None,
-            keep_threshold: 0.5,
+            keep_budget_ratio: 0.15,
             preserve_recent_messages: 6,
             max_state_tokens: 25_000,
             max_combined_tokens: 60_000,

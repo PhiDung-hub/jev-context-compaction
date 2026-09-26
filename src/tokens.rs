@@ -1,6 +1,11 @@
 /// Conservative tokenizer-free estimate calibrated for JSON-heavy Jev state.
 #[must_use]
 pub fn estimate_tokens(text: &str) -> usize {
+    tenths_to_tokens(estimate_token_tenths(text))
+}
+
+/// Unrounded estimate in tenths of a token; additive across texts split at punctuation.
+pub(crate) fn estimate_token_tenths(text: &str) -> usize {
     let mut token_tenths = 0_usize;
     let mut letters = 0_usize;
     let mut digits = 0_usize;
@@ -19,7 +24,11 @@ pub fn estimate_tokens(text: &str) -> usize {
             }
         }
     }
-    token_tenths.saturating_add(9) / 10
+    token_tenths
+}
+
+pub(crate) fn tenths_to_tokens(tenths: usize) -> usize {
+    tenths.saturating_add(9) / 10
 }
 
 fn flush_letters(tokens: &mut usize, letters: &mut usize) {

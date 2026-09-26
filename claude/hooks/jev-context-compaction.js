@@ -13,7 +13,7 @@ function finite(options, key, fallback) {
 function configFrom(options) {
   const compact = {};
   for (const key of [
-    'keepThreshold',
+    'keepBudgetRatio',
     'preserveRecentMessages',
     'maxStateTokens',
     'maxCombinedTokens',

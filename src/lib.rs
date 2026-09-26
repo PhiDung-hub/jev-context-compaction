@@ -8,7 +8,7 @@ mod state;
 mod tokens;
 
 pub use compact::{compact, reduction_ratio};
-pub use decision::{apply_decisions, decide_call};
+pub use decision::{apply_decisions, decide_calls};
 pub use model::{
     CallAction, CallAnswer, CallDecision, CompactOptions, CompactResult, CompactStats,
     CompactionError, Message, Role, ToolCall, ToolResult, ToolUse,

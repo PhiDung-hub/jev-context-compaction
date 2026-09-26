@@ -1,19 +1,26 @@
 use std::collections::BTreeMap;
 
 use crate::model::{Message, Result, Role, ToolCall};
-use crate::tokens::estimate_tokens;
+use crate::tokens::{estimate_token_tenths, estimate_tokens};
 
-use super::{CompactionState, FittedState, HistoryCall, HistoryEntry, STATE_CONTEXT};
+use super::{CompactionState, HistoryCall, HistoryEntry, STATE_CONTEXT};
 
 pub(super) fn history_entries(
     messages: &[Message],
     calls: &[ToolCall],
     input_limit: usize,
+    head_chars: usize,
 ) -> Vec<HistoryEntry> {
     let mut by_message = BTreeMap::<usize, Vec<&ToolCall>>::new();
     for call in calls {
         by_message.entry(call.call_index).or_default().push(call);
     }
+    let results: BTreeMap<_, _> = messages
+        .iter()
+        .flat_map(|message| &message.tool_results)
+        .filter(|_| head_chars > 0)
+        .map(|result| (result.tool_use_id.as_str(), result.text.as_str()))
+        .collect();
     messages
         .iter()
         .enumerate()
@@ -30,6 +37,9 @@ pub(super) fn history_entries(
                         input_limit,
                     ),
                     result: result_note(call),
+                    head: results
+                        .get(call.tool_use_id.as_str())
+                        .map(|text| truncate(text, head_chars)),
                 })
                 .collect::<Vec<_>>();
             (!message.text.trim().is_empty() || !tool_calls.is_empty()).then(|| HistoryEntry {
@@ -50,17 +60,56 @@ pub(super) fn state(goal: String, history: Vec<HistoryEntry>) -> CompactionState
     }
 }
 
-pub(super) fn within(
-    state: CompactionState,
-    limit: usize,
-    stage_label: &str,
-) -> Result<Option<FittedState>> {
-    let tokens = state_tokens(&state)?;
-    Ok((tokens <= limit).then(|| FittedState {
-        state,
-        tokens,
-        stage: stage_label.to_owned(),
-    }))
+/// `(entry, call)` positions of result heads, oldest first.
+pub(super) fn head_slots(history: &[HistoryEntry]) -> Vec<(usize, usize)> {
+    history
+        .iter()
+        .enumerate()
+        .flat_map(|(entry, item)| {
+            item.tool_calls
+                .iter()
+                .enumerate()
+                .filter_map(move |(call, value)| {
+                    matches!(value, HistoryCall::Structured { head: Some(_), .. })
+                        .then_some((entry, call))
+                })
+        })
+        .collect()
+}
+
+/// How many of the newest heads fit in `tokens`.
+pub(super) fn newest_heads_within(history: &[HistoryEntry], tokens: usize) -> Result<usize> {
+    let mut left = tokens.saturating_mul(10);
+    let mut count = 0;
+    for (entry, call) in head_slots(history).into_iter().rev() {
+        let HistoryCall::Structured {
+            head: Some(head), ..
+        } = &history[entry].tool_calls[call]
+        else {
+            continue;
+        };
+        let cost = estimate_token_tenths(&format!(",\"head\":{}", serde_json::to_string(head)?));
+        if cost > left {
+            break;
+        }
+        left -= cost;
+        count += 1;
+    }
+    Ok(count)
+}
+
+/// Drop every head but the newest `keep`.
+pub(super) fn keep_newest_heads(history: &mut [HistoryEntry], keep: usize) {
+    let slots = head_slots(history);
+    for (entry, call) in &slots[..slots.len().saturating_sub(keep)] {
+        drop_head(&mut history[*entry], *call);
+    }
+}
+
+pub(super) fn drop_head(entry: &mut HistoryEntry, call: usize) {
+    if let Some(HistoryCall::Structured { head, .. }) = entry.tool_calls.get_mut(call) {
+        *head = None;
+    }
 }
 
 pub(super) fn state_tokens(state: &CompactionState) -> Result<usize> {
@@ -96,7 +145,7 @@ pub(super) fn goal_from_messages(messages: &[Message]) -> String {
 
 fn result_note(call: &ToolCall) -> String {
     format!(
-        "{}, {} chars omitted",
+        "{}, {} chars",
         if call.is_error { "error" } else { "ok" },
         call.result_chars
     )
@@ -134,10 +183,20 @@ pub(super) fn compact_old_calls(
         if is_pinned(entry.i, total, recent) || entry.tool_calls.is_empty() {
             continue;
         }
+        // A compacted call keeps its head, if it still has one.
         entry.tool_calls = calls
             .iter()
             .filter(|call| call.call_index == entry.i)
-            .map(|call| HistoryCall::Compact(compact_call(call)))
+            .zip(&entry.tool_calls)
+            .map(|(call, shown)| {
+                let line = compact_call(call);
+                HistoryCall::Compact(match shown {
+                    HistoryCall::Structured {
+                        head: Some(head), ..
+                    } => format!("{line}; head: {head}"),
+                    _ => line,
+                })
+            })
             .collect();
     }
 }
