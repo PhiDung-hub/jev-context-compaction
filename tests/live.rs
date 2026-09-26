@@ -17,6 +17,7 @@ async fn live_compaction_uses_one_request() {
             )]),
             text: None,
             is_error: false,
+            extra: BTreeMap::new(),
         })
         .collect();
     let tool_results = (0..8)
@@ -24,6 +25,7 @@ async fn live_compaction_uses_one_request() {
             tool_use_id: format!("call-{index}"),
             text: format!("source content for module {index}"),
             is_error: false,
+            extra: BTreeMap::new(),
         })
         .collect();
     let messages = vec![
@@ -33,6 +35,7 @@ async fn live_compaction_uses_one_request() {
             tool_uses: vec![],
             tool_results: vec![],
             handle: None,
+            extra: BTreeMap::new(),
         },
         Message {
             role: Role::Assistant,
@@ -40,6 +43,7 @@ async fn live_compaction_uses_one_request() {
             tool_uses,
             tool_results: vec![],
             handle: None,
+            extra: BTreeMap::new(),
         },
         Message {
             role: Role::User,
@@ -47,6 +51,7 @@ async fn live_compaction_uses_one_request() {
             tool_uses: vec![],
             tool_results,
             handle: None,
+            extra: BTreeMap::new(),
         },
     ];
     let options = CompactOptions {

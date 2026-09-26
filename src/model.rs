@@ -20,6 +20,9 @@ pub struct ToolUse {
     pub text: Option<String>,
     #[serde(default, rename = "isError", skip_serializing_if = "is_false")]
     pub is_error: bool,
+    /// Host fields this crate does not read, returned unchanged.
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Json>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -28,6 +31,9 @@ pub struct ToolResult {
     pub text: String,
     #[serde(default, rename = "isError", skip_serializing_if = "is_false")]
     pub is_error: bool,
+    /// Host fields this crate does not read, returned unchanged.
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Json>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -42,6 +48,9 @@ pub struct Message {
     pub tool_results: Vec<ToolResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handle: Option<String>,
+    /// Host fields this crate does not read, returned unchanged.
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Json>,
 }
 
 #[derive(Clone, Debug)]
@@ -107,7 +116,7 @@ impl Default for CompactOptions {
             max_combined_tokens: 60_000,
             max_state_question_tokens: 30_000,
             max_parallel_requests: 4,
-            request_timeout_ms: 3_000,
+            request_timeout_ms: 8_000,
             truncate_head_chars: 300,
         }
     }

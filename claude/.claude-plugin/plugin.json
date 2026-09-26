@@ -1,6 +1,6 @@
 {
   "name": "jev-context-compaction",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Low-latency Jev-guided compaction through the TypeSafe AI Rust SDK.",
   "author": { "name": "TypeSafe Rust SDK contributors" },
   "license": "MIT",
@@ -69,7 +69,7 @@
       "type": "number",
       "title": "Request timeout",
       "description": "Jev request deadline in milliseconds before built-in fallback.",
-      "default": 3000
+      "default": 8000
     },
     "truncateHeadChars": {
       "type": "number",

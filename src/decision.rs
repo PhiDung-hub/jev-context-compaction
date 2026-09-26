@@ -100,6 +100,7 @@ fn rebuild_message(
         tool_uses,
         tool_results,
         handle: None,
+        extra: message.extra.clone(),
     })
 }
 

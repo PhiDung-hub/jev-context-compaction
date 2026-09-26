@@ -7,13 +7,16 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{DefaultBodyLimit, State, rejection::JsonRejection},
     http::StatusCode,
     routing::{get, post},
 };
 use jev_context_compaction::{CompactOptions, CompactResult, CompactionError, Message, compact};
 use serde::{Deserialize, Serialize};
 use typesafe_ai::Client;
+
+/// Claude Code sends a 600k-token transcript as ~3.4 MB of JSON; axum's default limit is 2 MiB.
+const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +36,7 @@ struct AppState {
 #[derive(Default)]
 struct Metrics {
     attempts: AtomicU64,
+    rejected: AtomicU64,
     succeeded: AtomicU64,
     failed: AtomicU64,
     jev_requests: AtomicU64,
@@ -72,6 +76,7 @@ impl Metrics {
     fn snapshot(&self) -> Usage {
         Usage {
             attempts: self.attempts.load(Ordering::Relaxed),
+            rejected: self.rejected.load(Ordering::Relaxed),
             succeeded: self.succeeded.load(Ordering::Relaxed),
             failed: self.failed.load(Ordering::Relaxed),
             jev_requests: self.jev_requests.load(Ordering::Relaxed),
@@ -139,6 +144,7 @@ struct Health {
 #[serde(rename_all = "camelCase")]
 struct Usage {
     attempts: u64,
+    rejected: u64,
     succeeded: u64,
     failed: u64,
     jev_requests: u64,
@@ -179,6 +185,7 @@ fn app(client: Client, pause_file: Option<PathBuf>) -> Router {
     Router::new()
         .route("/compact", post(compact_route))
         .route("/health", get(health_route))
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .with_state(AppState {
             client,
             usage: Arc::new(UsageCircuit::new(pause_file)),
@@ -188,8 +195,21 @@ fn app(client: Client, pause_file: Option<PathBuf>) -> Router {
 
 async fn compact_route(
     State(state): State<AppState>,
-    Json(request): Json<CompactRequest>,
+    request: Result<Json<CompactRequest>, JsonRejection>,
 ) -> Result<Json<CompactResult>, (StatusCode, Json<BridgeError>)> {
+    let Json(request) = request.map_err(|rejection| {
+        state.metrics.rejected.fetch_add(1, Ordering::Relaxed);
+        let (status, message) = (rejection.status(), rejection.body_text());
+        eprintln!("rejected /compact body ({status}): {message}");
+        (
+            status,
+            Json(BridgeError {
+                code: "invalid_request",
+                disable_hooks: false,
+                message,
+            }),
+        )
+    })?;
     state.metrics.attempts.fetch_add(1, Ordering::Relaxed);
     if state.usage.is_paused() {
         state.metrics.failed.fetch_add(1, Ordering::Relaxed);
@@ -398,6 +418,39 @@ mod tests {
             assert!(error.disable_hooks);
         }
         mock.assert_calls_async(1).await;
+    }
+
+    #[tokio::test]
+    async fn large_bodies_reach_the_handler_and_rejections_are_counted() {
+        let client = Client::builder()
+            .api_key("test")
+            .base_url("http://127.0.0.1:9")
+            .build()
+            .unwrap();
+        let app = app(client, None);
+        let post = |mib: usize| {
+            let body = serde_json::json!({
+                "messages": [{"role": "user", "text": "x".repeat(mib << 20), "toolUses": []}]
+            });
+            Request::post("/compact")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap()
+        };
+
+        let response = app.clone().oneshot(post(3)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let response = app.clone().oneshot(post(9)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        let health = app
+            .oneshot(Request::get("/health").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let body = to_bytes(health.into_body(), 1_000_000).await.unwrap();
+        let health: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(health["usage"]["attempts"], 1);
+        assert_eq!(health["usage"]["rejected"], 1);
     }
 
     #[derive(Deserialize)]

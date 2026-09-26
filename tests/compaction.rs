@@ -15,6 +15,7 @@ fn text(role: Role, value: &str) -> Message {
         tool_uses: vec![],
         tool_results: vec![],
         handle: None,
+        extra: BTreeMap::new(),
     }
 }
 
@@ -28,9 +29,11 @@ fn call(id: &str, tool: &str, path: &str) -> Message {
             input: BTreeMap::from([("file_path".to_owned(), Json::from(path))]),
             text: None,
             is_error: false,
+            extra: BTreeMap::new(),
         }],
         tool_results: vec![],
         handle: Some(format!("call-{id}")),
+        extra: BTreeMap::new(),
     }
 }
 
@@ -43,8 +46,10 @@ fn result(id: &str, value: &str) -> Message {
             tool_use_id: id.to_owned(),
             text: value.to_owned(),
             is_error: false,
+            extra: BTreeMap::new(),
         }],
         handle: Some(format!("result-{id}")),
+        extra: BTreeMap::new(),
     }
 }
 
@@ -143,4 +148,30 @@ async fn compacts_all_candidates_in_one_native_fanout_request() {
             .iter()
             .any(|tool| tool.tool_use_id == "one")
     }));
+}
+
+#[test]
+fn unknown_host_fields_round_trip() {
+    let row = serde_json::json!({
+        "role": "user",
+        "text": "",
+        "toolUses": [{
+            "tool_use_id": "one", "tool": "Agent", "input": {},
+            "result": {"agentId": "a1", "content": [{"type": "text", "text": "done"}]},
+            "agentId": "a1", "durationMs": 42
+        }],
+        "toolResults": [{
+            "tool_use_id": "one", "text": "done", "isError": true,
+            "result": {"stdout": "done", "interrupted": false}
+        }],
+        "handle": "h1",
+        "hostTag": [1, 2.5, null]
+    });
+    let message: Message = serde_json::from_value(row.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&message).unwrap(), row);
+}
+
+#[test]
+fn default_request_timeout_allows_large_context_fanout() {
+    assert_eq!(CompactOptions::default().request_timeout_ms, 8_000);
 }

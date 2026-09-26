@@ -60,6 +60,39 @@ function summary(result) {
   return `${Math.round(reduction(result) * 100)}% reduction; ${stats.calls} calls; ${stats.requests} Jev request(s); ${stats.elapsedMs} ms`;
 }
 
+function byId(messages, key) {
+  return new Map(messages.flatMap((message) => message[key] ?? []).map((item) => [item.tool_use_id, item]));
+}
+
+// Claude Code attaches each result to its call (text + structured `result`); the
+// compactor reads neither, so send one copy and restore the rest afterwards.
+function strip(messages) {
+  const results = byId(messages, 'toolResults');
+  return messages.map((message) => ({
+    ...message,
+    toolUses: message.toolUses.map(({ result, text, ...use }) =>
+      text === undefined || text === results.get(use.tool_use_id)?.text ? use : { ...use, text }),
+    ...(message.toolResults && {
+      toolResults: message.toolResults.map(({ result, ...toolResult }) => toolResult),
+    }),
+  }));
+}
+
+function restore(compacted, original) {
+  const uses = byId(original, 'toolUses');
+  const results = byId(original, 'toolResults');
+  return compacted.map((message) => ({
+    ...message,
+    toolUses: message.toolUses.map((use) => ({ ...uses.get(use.tool_use_id), ...use })),
+    ...(message.toolResults && {
+      toolResults: message.toolResults.map((toolResult) => ({
+        ...results.get(toolResult.tool_use_id),
+        ...toolResult,
+      })),
+    }),
+  }));
+}
+
 function notify($, text) {
   $.ui.log(text);
   $.ui.toast(text, { timeoutMs: 15000 });
@@ -98,13 +131,13 @@ export const register = (on, options) => {
     if (disabled) return next(event);
     notify($, 'jev-context-compaction started');
     try {
-      const result = await run($, event.messages, config);
+      const result = await run($, strip(event.messages), config);
       if (reduction(result) < config.minReductionRatio) {
         notify($, `jev-context-compaction finished; built-in fallback below reduction threshold (${summary(result)})`);
         return next(event);
       }
       notify($, `jev-context-compaction applied (${summary(result)})`);
-      return { messages: result.messages };
+      return { messages: restore(result.messages, event.messages) };
     } catch (error) {
       if (error instanceof Error && error.disableHooks === true) {
         disabled = true;
@@ -142,4 +175,4 @@ export const register = (on, options) => {
   });
 };
 
-export { configFrom, reduction, summary };
+export { configFrom, reduction, restore, strip, summary };
