@@ -198,6 +198,32 @@ fn budget_keeps_top_ranked_calls_even_below_half() {
 }
 
 #[test]
+fn reserve_keeps_a_full_result_that_plain_calls_would_crowd_out() {
+    let calls = collect_tool_calls(&many_calls(12), 0);
+    let mut probabilities = vec![(0.6, 0.9)];
+    probabilities.extend([(0.9, 0.1); 11]);
+    let decisions = decide_calls(&calls, &answers(&probabilities), 0.4, 300);
+    assert_eq!(decisions[0].action, CallAction::Keep);
+}
+
+#[test]
+fn unused_reserve_flows_back_to_calls() {
+    // Every full result costs more than the reserve, so calls get the whole budget.
+    let calls = collect_tool_calls(&many_calls(10), 0);
+    let actions: Vec<_> = decide_calls(&calls, &answers(&[(0.9, 0.9); 10]), 0.3, 300)
+        .into_iter()
+        .map(|decision| decision.action)
+        .collect();
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|action| **action == CallAction::DropResult)
+            .count(),
+        6
+    );
+}
+
+#[test]
 fn kept_characters_stay_within_the_budget() {
     let messages = many_calls(10);
     let calls = collect_tool_calls(&messages, 0);
@@ -252,7 +278,10 @@ async fn compacts_all_candidates_in_one_native_fanout_request() {
             when.method(POST)
                 .path("/v1/systemone")
                 .body_includes("call_t1")
-                .body_includes("result_t2");
+                .body_includes("result_t2")
+                .body_includes(
+                    "(Read) because it is a file still being edited or output still being fixed?",
+                );
             then.status(200).json_body(serde_json::json!({
                 "model": "jev-test",
                 "usage": {"input_tokens": 700, "output_tokens": 80},

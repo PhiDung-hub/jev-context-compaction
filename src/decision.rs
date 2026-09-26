@@ -4,11 +4,15 @@ use crate::model::{CallAction, CallAnswer, CallDecision, Message, ToolCall, Tool
 
 /// An item costing more than `1 / OVERSIZED_SHARE` of the keep budget ranks after all others.
 const OVERSIZED_SHARE: usize = 4;
+/// Share of the keep budget that full results spend first; what they leave returns to the pool.
+const FULL_RESULT_RESERVE: f64 = 0.33;
 
 /// Keep the calls and full results Jev ranks highest until `budget_ratio` of the
 /// unpinned calls' characters is spent. A full result ranks by
 /// `keep_call * keep_result` and also pays for its call; pinned calls are free.
 /// Items over a quarter of the budget rank last, spending only what the rest left.
+/// Full results first spend a reserved third among themselves, so plain calls cannot
+/// crowd them all out.
 #[must_use]
 pub fn decide_calls(
     calls: &[ToolCall],
@@ -30,7 +34,7 @@ pub fn decide_calls(
     let total = candidates()
         .map(|index| costs[index].0 + costs[index].1)
         .sum();
-    let mut budget = budget_chars(total, budget_ratio);
+    let budget = budget_chars(total, budget_ratio);
     let oversized = |index: usize, full: bool| {
         costs[index].0 + if full { costs[index].1 } else { 0 } > budget / OVERSIZED_SHARE
     };
@@ -65,22 +69,10 @@ pub fn decide_calls(
             }
         })
         .collect();
-    for (_, _, index, full) in ranked {
-        let cost = match (actions[index], full) {
-            (CallAction::DropCall, false) => costs[index].0,
-            (CallAction::DropCall, true) => costs[index].0 + costs[index].1,
-            (CallAction::DropResult, true) => costs[index].1,
-            _ => continue,
-        };
-        if cost <= budget {
-            budget -= cost;
-            actions[index] = if full {
-                CallAction::Keep
-            } else {
-                CallAction::DropResult
-            };
-        }
-    }
+    let reserve = budget_chars(budget, FULL_RESULT_RESERVE);
+    let fulls: Vec<_> = ranked.iter().copied().filter(|item| item.3).collect();
+    let budget = budget - reserve + spend(&fulls, &mut actions, &costs, reserve);
+    spend(&ranked, &mut actions, &costs, budget);
     calls
         .iter()
         .zip(actions)
@@ -102,6 +94,32 @@ pub fn decide_calls(
             }
         })
         .collect()
+}
+
+/// Apply ranked items in order while they fit; returns the unspent budget.
+fn spend(
+    ranked: &[(bool, f64, usize, bool)],
+    actions: &mut [CallAction],
+    costs: &[(usize, usize)],
+    mut budget: usize,
+) -> usize {
+    for &(_, _, index, full) in ranked {
+        let cost = match (actions[index], full) {
+            (CallAction::DropCall, false) => costs[index].0,
+            (CallAction::DropCall, true) => costs[index].0 + costs[index].1,
+            (CallAction::DropResult, true) => costs[index].1,
+            _ => continue,
+        };
+        if cost <= budget {
+            budget -= cost;
+            actions[index] = if full {
+                CallAction::Keep
+            } else {
+                CallAction::DropResult
+            };
+        }
+    }
+    budget
 }
 
 /// Characters a call keeps with its result truncated, and the extra its full result adds.

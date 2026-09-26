@@ -19,8 +19,8 @@ pub(crate) fn questions_for(call: &ToolCall) -> Questions {
         (
             format!("result_{}", call.id),
             Question::noul(format!(
-                "Must the full result of tool call {} ({}, {} chars) remain verbatim? Answer no if its `head` in `history` or re-running it is sufficient.",
-                call.id, call.tool, call.result_chars
+                "Will the assistant need to re-read the exact full output of tool call {} ({}) because it is a file still being edited or output still being fixed?",
+                call.id, call.tool
             )),
         ),
     ])
