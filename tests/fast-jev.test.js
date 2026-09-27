@@ -93,16 +93,28 @@ test('each compaction toasts once as `<what> · <outcome>`, without server text,
 
   assert.deepEqual(
     await toastsFor(async () => ({ ok: true, text: JSON.stringify({ messages, stats }) })),
-    ['compact · applied 74% in 0.7 s'],
+    ['🟢 compact · applied 74% in 0.7 s'],
   );
   assert.deepEqual(
     await toastsFor(async () => ({ ok: false, status: 413, text: 'secret prompt' })),
-    ['fallback · HTTP 413'],
+    ['🟡 fallback · HTTP 413'],
   );
   assert.deepEqual(
     await toastsFor(async () => ({ ok: true, text: JSON.stringify({ messages, stats }) }), () => {
       throw new Error('toast down');
     }),
-    ['compact · applied 74% in 0.7 s'],
+    ['🟢 compact · applied 74% in 0.7 s'],
   );
+});
+
+test('exhausted usage toasts red once, then compaction stays with the built-in', async () => {
+  const handlers = new Map();
+  register((name, handler) => handlers.set(name, handler), {});
+  const toasts = [];
+  const $ = {
+    http: { fetch: async () => ({ ok: false, status: 429, text: JSON.stringify({ disableHooks: true }) }) },
+    ui: { log: () => {}, toast: (text) => toasts.push(text) },
+  };
+  for (let i = 0; i < 2; i += 1) await handlers.get('session.compact')($, { messages: [] }, () => 'next');
+  assert.deepEqual(toasts, ['🔴 fallback · TypeSafe usage exhausted, disabled']);
 });

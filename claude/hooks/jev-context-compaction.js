@@ -99,12 +99,18 @@ function log($, text) {
   } catch {}
 }
 
-// One toast per action, `<what> · <outcome>`; Claude Code titles it with the plugin name.
+// Toasts take no colour option and draw ESC as U+FFFD, so a colour emoji carries the tone.
+function dot(toast) {
+  if (toast.startsWith('compact ·')) return '🟢';
+  return toast.includes('disabled') ? '🔴' : '🟡';
+}
+
+// One toast per action, `<dot> <what> · <outcome>`; Claude Code titles it with the plugin name.
 // Toasts never carry payloads or server text: that detail goes to the log only.
 function notify($, toast, detail = toast) {
   log($, detail);
   try {
-    $.ui.toast(toast, { timeoutMs: 15000 });
+    $.ui.toast(`${dot(toast)} ${toast}`, { timeoutMs: 15000 });
   } catch {}
 }
 
