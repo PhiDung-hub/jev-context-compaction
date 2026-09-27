@@ -207,6 +207,15 @@ fn reserve_keeps_a_full_result_that_plain_calls_would_crowd_out() {
 }
 
 #[test]
+fn reserve_skips_full_results_below_the_floor() {
+    let calls = collect_tool_calls(&many_calls(12), 0);
+    let mut probabilities = vec![(0.6, 0.1)];
+    probabilities.extend([(0.9, 0.05); 11]);
+    let decisions = decide_calls(&calls, &answers(&probabilities), 0.4, 300);
+    assert!(decisions.iter().all(|d| d.action != CallAction::Keep));
+}
+
+#[test]
 fn unused_reserve_flows_back_to_calls() {
     // Every full result costs more than the reserve, so calls get the whole budget.
     let calls = collect_tool_calls(&many_calls(10), 0);

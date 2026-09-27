@@ -6,13 +6,16 @@ use crate::model::{CallAction, CallAnswer, CallDecision, Message, ToolCall, Tool
 const OVERSIZED_SHARE: usize = 4;
 /// Share of the keep budget that full results spend first; what they leave returns to the pool.
 const FULL_RESULT_RESERVE: f64 = 0.33;
+/// Lowest `keep_call * keep_result` that may spend the reserve; below it, full results
+/// compete only in the shared pool.
+const FULL_RESULT_FLOOR: f64 = 0.08;
 
 /// Keep the calls and full results Jev ranks highest until `budget_ratio` of the
 /// unpinned calls' characters is spent. A full result ranks by
 /// `keep_call * keep_result` and also pays for its call; pinned calls are free.
 /// Items over a quarter of the budget rank last, spending only what the rest left.
-/// Full results first spend a reserved third among themselves, so plain calls cannot
-/// crowd them all out.
+/// Full results rated at least `FULL_RESULT_FLOOR` first spend a reserved third among
+/// themselves, so plain calls cannot crowd them all out.
 #[must_use]
 pub fn decide_calls(
     calls: &[ToolCall],
@@ -70,7 +73,11 @@ pub fn decide_calls(
         })
         .collect();
     let reserve = budget_chars(budget, FULL_RESULT_RESERVE);
-    let fulls: Vec<_> = ranked.iter().copied().filter(|item| item.3).collect();
+    let fulls: Vec<_> = ranked
+        .iter()
+        .copied()
+        .filter(|item| item.3 && item.1 >= FULL_RESULT_FLOOR)
+        .collect();
     let budget = budget - reserve + spend(&fulls, &mut actions, &costs, reserve);
     spend(&ranked, &mut actions, &costs, budget);
     calls
