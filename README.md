@@ -97,10 +97,20 @@ The path is:
 Claude hook -> one loopback POST -> shared Rust Client -> one Jev fan-out request
 ```
 
-Claude displays `jev-context-compaction started` while the Jev request is active,
-then reports whether its result was applied or the built-in fallback was used.
-With the plugin installed, compaction is automatic at 60% context usage after a
-turn completes, not on every message. A manual Claude Code compaction also uses
+While the Jev request is active the band above the prompt shows
+`◌ compact · running 0.8s`, counting up; the outcome then replaces it, such as
+`◆ compact · applied 74% · jev req_7f3a · 1.2s` or
+`◊ compact · fallback: reduction 17% below 25% · 1.2s`: a diamond by outcome
+(◆ applied, ◊ fallback, 󱇎 disabled), the first Jev request's id (`stats.requestIds`)
+and a subagent's id when a subagent's transcript compacted, and how long the
+compaction took as the hook timed it. The outcome stays 15 s, coloured, or is a
+toast where no band draws. The band is shared with `jev-input-standardizer`: one
+time-ordered band, drawn by whichever pack holds a fresh line first, and by Agent OS
+instead when it sets its `drawsNotices` state.
+With the plugin installed, compaction is automatic after a turn completes, not on
+every message: always from `ceilingPercent` (80%) context usage, and from
+`compactAtPercent` (50%) once about two more turns at the recent pace (the average
+growth of the last three growing turns) would reach the ceiling. A manual Claude Code compaction also uses
 the same hook. Restart an existing Claude Code session to load the renamed plugin.
 Automatic compaction retries only after context usage grows by another ten
 percentage points (configurable with `autoRetryDeltaPercent`), avoiding a Jev

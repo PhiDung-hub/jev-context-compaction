@@ -30,6 +30,7 @@ pub async fn compact(
     let chars_before = message_chars_total(messages);
     let mut answers = BTreeMap::<String, CallAnswer>::new();
     let mut requests = 0;
+    let mut request_ids = Vec::new();
     let mut input_tokens = 0_u64;
     let mut state_tokens = 0;
     let mut state_stage = String::new();
@@ -63,6 +64,7 @@ pub async fn compact(
         for (batch, response) in batches.iter().zip(responses) {
             let response = response?;
             input_tokens = input_tokens.saturating_add(response.usage.input_tokens.unwrap_or(0));
+            request_ids.extend(response.request_id().map(str::to_owned));
             for call in batch {
                 answers.insert(call.id.clone(), answer_for(&response, call)?);
             }
@@ -89,6 +91,7 @@ pub async fn compact(
         state_tokens,
         state_stage,
         requests,
+        request_ids,
         input_tokens,
         elapsed_ms: started.elapsed().as_millis(),
     };

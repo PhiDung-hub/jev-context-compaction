@@ -291,16 +291,18 @@ async fn compacts_all_candidates_in_one_native_fanout_request() {
                 .body_includes(
                     "(Read) because it is a file still being edited or output still being fixed?",
                 );
-            then.status(200).json_body(serde_json::json!({
-                "model": "jev-test",
-                "usage": {"input_tokens": 700, "output_tokens": 80},
-                "answers": {
-                    "call_t1": {"type": "noul", "noul": 0.1},
-                    "result_t1": {"type": "noul", "noul": 0.1},
-                    "call_t2": {"type": "noul", "noul": 0.9},
-                    "result_t2": {"type": "noul", "noul": 0.9}
-                }
-            }));
+            then.status(200)
+                .header("x-typesafe-request-id", "req_fanout")
+                .json_body(serde_json::json!({
+                    "model": "jev-test",
+                    "usage": {"input_tokens": 700, "output_tokens": 80},
+                    "answers": {
+                        "call_t1": {"type": "noul", "noul": 0.1},
+                        "result_t1": {"type": "noul", "noul": 0.1},
+                        "call_t2": {"type": "noul", "noul": 0.9},
+                        "result_t2": {"type": "noul", "noul": 0.9}
+                    }
+                }));
         })
         .await;
     let client = Client::builder()
@@ -317,6 +319,7 @@ async fn compacts_all_candidates_in_one_native_fanout_request() {
     request.assert_calls_async(1).await;
     assert_eq!(output.stats.requests, 1);
     assert_eq!(output.stats.input_tokens, 700);
+    assert_eq!(output.stats.request_ids, ["req_fanout"]);
     assert_eq!(
         output
             .decisions

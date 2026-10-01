@@ -138,6 +138,8 @@ pub struct CompactStats {
     pub state_tokens: usize,
     pub state_stage: String,
     pub requests: usize,
+    /// Jev's id for each request that answered, in batch order.
+    pub request_ids: Vec<String>,
     pub input_tokens: u64,
     pub elapsed_ms: u128,
 }

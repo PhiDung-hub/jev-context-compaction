@@ -1,9 +1,12 @@
 {
   "name": "jev-context-compaction",
-  "version": "0.1.9",
+  "version": "0.3.1",
   "description": "Low-latency Jev-guided compaction through the TypeSafe AI Rust SDK.",
-  "author": { "name": "TypeSafe Rust SDK contributors" },
+  "author": {
+    "name": "TypeSafe Rust SDK contributors"
+  },
   "license": "MIT",
+  "types": "./types/index.d.ts",
   "userConfig": {
     "endpoint": {
       "type": "string",
@@ -25,9 +28,15 @@
     },
     "compactAtPercent": {
       "type": "number",
-      "title": "Compaction percentage",
-      "description": "Context percentage at which turn.complete requests compaction.",
-      "default": 60
+      "title": "Compaction floor",
+      "description": "Context percentage below which auto-compaction never runs; from here it runs once about two more turns at the recent pace would reach the ceiling.",
+      "default": 50
+    },
+    "ceilingPercent": {
+      "type": "number",
+      "title": "Compaction ceiling",
+      "description": "Context percentage at which auto-compaction always runs.",
+      "default": 80
     },
     "autoRetryDeltaPercent": {
       "type": "number",
